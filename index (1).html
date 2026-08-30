@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8" />
+<title>ODZIVNIK</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #101216; }
+  #app {
+    --bg: #101216; --panel: #171a20; --panel-2: #1d212a; --border: #262b34;
+    --text: #eceef1; --text-dim: #8891a0; --text-faint: #565e6b;
+    --ok: #3ed598; --warn: #ffb84d; --problem: #ff5c6c;
+    display: grid; grid-template-columns: 220px 1fr;
+    min-height: 100vh; background: var(--bg); color: var(--text);
+    font-family: 'Inter', sans-serif;
+  }
+  h1, h2, .panel-title, .platform-card__name, .brand-name { font-family: 'Space Grotesk', sans-serif; }
+  svg.icon { width: 1em; height: 1em; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.15em; }
+
+  .sidebar { background: #0c0d10; border-right: 1px solid var(--border); padding: 20px 14px; display: flex; flex-direction: column; gap: 4px; }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 4px 8px 22px; }
+  .brand-mark { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #8B6BFF, #2FE6C9); display: flex; align-items: center; justify-content: center; color: #0c0d10; font-size: 15px; }
+  .brand-name { font-size: 16px; font-weight: 700; letter-spacing: 0.02em; }
+  .brand-sub { font-size: 10.5px; color: var(--text-faint); margin-top: -2px; }
+
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: var(--text-dim); font-size: 13.5px; font-weight: 500; cursor: pointer; border: none; background: none; text-align: left; width: 100%; font-family: inherit; }
+  .nav-item:hover { background: var(--panel); color: var(--text); }
+  .nav-item.active { background: var(--panel-2); color: var(--text); }
+  .nav-item .dot { width: 6px; height: 6px; border-radius: 50%; margin-left: auto; background: #FF5C6C; }
+
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 26px; border-bottom: 1px solid var(--border); background: #0e1014; }
+  .topbar-title { font-size: 13px; color: var(--text-dim); }
+  .topbar-status { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
+
+  .page { padding: 24px 26px 40px; }
+  .page-title { font-size: 21px; font-weight: 700; margin: 0 0 2px; }
+  .page-subtitle { font-size: 13px; color: var(--text-dim); margin: 0; }
+
+  .grid-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 18px 0; }
+  .stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; gap: 11px; align-items: flex-start; }
+  .stat-card__icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; }
+  .stat-card__value { font-size: 19px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; line-height: 1.1; }
+  .stat-card__label { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+
+  .platform-header { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+  .platform-header__icon { width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0; align-items: start; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .panel-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; color: var(--text-dim); }
+  .panel-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+
+  .form-group { margin-bottom: 12px; }
+  .form-label { display: block; font-size: 11.5px; color: var(--text-dim); margin-bottom: 6px; font-weight: 500; }
+  .form-label--spaced { margin-top: 14px; }
+  .hint-text { font-size: 11.5px; color: var(--text-faint); margin: 0 0 10px; line-height: 1.4; }
+
+  .input, .textarea { width: 100%; background: #0e1014; border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 9px 10px; font-size: 13px; font-family: 'Inter', sans-serif; }
+  .textarea { resize: vertical; line-height: 1.5; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .input:focus, .textarea:focus { outline: 2px solid #8B6BFF55; border-color: #8B6BFF; }
+
+  .conn-status { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-dim); margin: 10px 0 12px; }
+  .conn-status--ok { color: var(--ok); }
+  .conn-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .conn-dot--off { background: var(--text-faint); }
+  .conn-dot--on { background: var(--ok); }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: 8px; padding: 9px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .btn-primary { color: #0c0d10; }
+  .btn-ghost { background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border); }
+
+  .chip-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid; border-radius: 999px; padding: 4px 6px 4px 11px; font-size: 12px; font-family: 'JetBrains Mono', monospace; background: #0e1014; }
+  .chip-remove { background: none; border: none; color: inherit; opacity: 0.6; cursor: pointer; display: flex; padding: 2px; border-radius: 50%; }
+  .chip-input-row { display: flex; gap: 8px; }
+  .chip-input-row .input { flex: 1; }
+
+  .table-wrap { overflow-x: auto; }
+  .table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .table th { text-align: left; color: var(--text-faint); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .table td { padding: 10px; border-bottom: 1px solid var(--border); color: var(--text-dim); vertical-align: top; }
+  .table tr:last-child td { border-bottom: none; }
+  .cell-user { color: var(--text); font-weight: 500; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .cell-muted { color: var(--text-faint); }
+  .row-problem { background: rgba(255,92,108,0.05); }
+  .empty-state { padding: 30px; text-align: center; color: var(--text-faint); font-size: 13px; }
+
+  .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .status-ok { background: rgba(62,213,152,0.12); color: var(--ok); }
+  .status-warn { background: rgba(255,184,77,0.12); color: var(--warn); }
+  .status-problem { background: rgba(255,92,108,0.14); color: var(--problem); }
+  .channel-tag { border: 1px solid; border-radius: 6px; padding: 2px 7px; font-size: 10.5px; font-weight: 600; }
+
+  .panel--problems { border-color: rgba(255,92,108,0.3); }
+  .problem-list { display: flex; flex-direction: column; gap: 10px; }
+  .problem-item { background: #0e1014; border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; }
+  .problem-item__top { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+  .problem-item__reason { font-size: 12px; color: var(--problem); }
+
+  .platform-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 14px; }
+  .platform-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 15px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 10px; font-family: inherit; color: inherit; }
+  .platform-card:hover { border-color: var(--accent); }
+  .platform-card__top { display: flex; align-items: center; gap: 9px; }
+  .platform-card__icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .platform-card__name { font-size: 13.5px; font-weight: 600; }
+  .platform-card__stats { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-dim); }
+
+  @media (max-width: 820px) {
+    #app { grid-template-columns: 1fr; }
+    .sidebar { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    .two-col, .grid-stats, .platform-cards { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const ICONS = {
+  dashboard: '<path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>',
+  instagram: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/>',
+  heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>',
+  music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  check: '<path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><polyline points="22 4 12 14.5 9 11.5"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16.5 14.5"/>',
+  shield: '<path d="M12 2 4 5v6c0 5.5 3.4 9.7 8 11 4.6-1.3 8-5.5 8-11V5z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  radio: '<circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 7.8a6 6 0 0 0 0 8.4M19 5a10 10 0 0 1 0 14M5 5a10 10 0 0 0 0 14"/>',
+  sparkles: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/>',
+};
+function icon(name) { return `<svg class="icon" viewBox="0 0 24 24">${ICONS[name]||''}</svg>`; }
+
+const PLATFORM_META = {
+  dashboard: { label: "Nadzorna plošča", accent: "#E8ECF1", icon: "dashboard" },
+  instagram: { label: "Instagram", accent: "#E85D9C", icon: "instagram" },
+  fanvue:    { label: "Fanvue",    accent: "#8B6BFF", icon: "heart" },
+  tiktok:    { label: "TikTok",    accent: "#2FE6C9", icon: "music" },
+};
+
+const state = { tab: "dashboard", connections: {}, conversations: {}, stats: [], settingsCache: {}, loading: true };
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  if (!res.ok) throw new Error(`${path}: ${res.status}`);
+  return res.json();
+}
+
+async function loadAll() {
+  state.loading = true; render();
+  const [connections, stats, fanvueConv, igConv, ttConv] = await Promise.all([
+    api('/api/connections').catch(() => ({})),
+    api('/api/stats').catch(() => []),
+    api('/api/conversations?platform=fanvue&limit=50').catch(() => []),
+    api('/api/conversations?platform=instagram&limit=50').catch(() => []),
+    api('/api/conversations?platform=tiktok&limit=50').catch(() => []),
+  ]);
+  state.connections = connections;
+  state.stats = stats;
+  state.conversations = { fanvue: fanvueConv, instagram: igConv, tiktok: ttConv };
+  state.loading = false;
+  render();
+}
+
+async function loadSettings(platform) {
+  if (state.settingsCache[platform]) return state.settingsCache[platform];
+  const s = await api(`/api/settings/${platform}`);
+  state.settingsCache[platform] = s;
+  return s;
+}
+
+function statusBadge(status) {
+  const map = {
+    ok: { label: "Odgovorjeno", ic: "check", cls: "status-ok" },
+    warn: { label: "Čaka", ic: "clock", cls: "status-warn" },
+    problem: { label: "Problem", ic: "shield", cls: "status-problem" },
+  };
+  const s = map[status] || map.ok;
+  return `<span class="status-badge ${s.cls}">${icon(s.ic)} ${s.label}</span>`;
+}
+
+function fmtTime(ts) {
+  const diffMin = Math.round((Date.now() - ts) / 60000);
+  if (diffMin < 1) return "zdaj";
+  if (diffMin < 60) return `${diffMin} min`;
+  const h = Math.round(diffMin / 60);
+  if (h < 24) return `${h} h`;
+  return `${Math.round(h / 24)} dni`;
+}
+
+function statCard(iconName, label, value, accent) {
+  return `<div class="stat-card">
+    <div class="stat-card__icon" style="background:${accent}22;color:${accent}">${icon(iconName)}</div>
+    <div><div class="stat-card__value">${value}</div><div class="stat-card__label">${label}</div></div>
+  </div>`;
+}
+
+function convTable(rows, showChannel) {
+  if (!rows.length) {
+    return `<div class="empty-state">Še ni pogovorov na tem kanalu. Ko ti nekdo napiše, se prikaže tukaj.</div>`;
+  }
+  return `<div class="table-wrap"><table class="table">
+    <thead><tr>
+      ${showChannel ? '<th>Kanal</th>' : ''}
+      <th>Uporabnik</th><th>Zadnje sporočilo</th><th>AI je odgovoril</th><th>Status</th><th>Čas</th>
+    </tr></thead>
+    <tbody>${rows.map(c => `
+      <tr class="${c.status==='problem' ? 'row-problem' : ''}">
+        ${showChannel ? `<td><span class="channel-tag" style="color:${PLATFORM_META[c.platform].accent};border-color:${PLATFORM_META[c.platform].accent}55">${PLATFORM_META[c.platform].label}</span></td>` : ''}
+        <td class="cell-user">${c.fan_name || c.external_chat_id}</td>
+        <td>${c.incoming_message || ''}</td>
+        <td class="${!c.ai_reply ? 'cell-muted' : ''}">${c.ai_reply || '—'}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td class="cell-muted">${fmtTime(c.created_at)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function problemPanel(rows, showChannel) {
+  if (!rows.length) return '';
+  return `<div class="panel panel--problems">
+    <div class="panel-header">${icon('shield')} <span class="panel-title" style="color:#FF5C6C">Problemi, ki čakajo na pregled</span></div>
+    <div class="problem-list">${rows.map(p => `
+      <div class="problem-item">
+        <div class="problem-item__top">
+          ${showChannel ? `<span class="channel-tag" style="color:${PLATFORM_META[p.platform].accent};border-color:${PLATFORM_META[p.platform].accent}55">${PLATFORM_META[p.platform].label}</span>` : ''}
+          <span class="cell-user">${p.fan_name || p.external_chat_id}</span>
+          <span class="cell-muted">${fmtTime(p.created_at)}</span>
+        </div>
+        <div class="problem-item__reason">${p.reason || ''}</div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function statFor(platform, field) {
+  const row = state.stats.find(s => s.platform === platform);
+  return row ? row[field] : 0;
+}
+
+function renderDashboard() {
+  const all = [...state.conversations.fanvue, ...state.conversations.instagram, ...state.conversations.tiktok]
+    .sort((a,b) => b.created_at - a.created_at);
+  const problems = all.filter(c => c.status === "problem");
+
+  return `
+  <div class="page">
+    <h1 class="page-title">Nadzorna plošča</h1>
+    <p class="page-subtitle">Pregled vseh treh AI klepetalnih kanalov na enem mestu</p>
+
+    <div class="grid-stats">
+      ${statCard('message', 'Pogovorov (24h, vsi kanali)', state.stats.reduce((a,s)=>a+s.total,0), '#8B9BFF')}
+      ${statCard('users', 'Skupaj v zgodovini', all.length, '#2FE6C9')}
+      ${statCard('alert', 'Odprti problemi', problems.length, '#FF5C6C')}
+      ${statCard('radio', 'Povezani kanali', `${Object.values(state.connections).filter(c=>c.connected).length} / 3`, '#3ED598')}
+    </div>
+
+    <div class="platform-cards">
+      ${["instagram","fanvue","tiktok"].map(id => {
+        const meta = PLATFORM_META[id];
+        const conv = state.conversations[id] || [];
+        const probs = conv.filter(c => c.status === "problem").length;
+        const connected = state.connections[id]?.connected;
+        return `<button class="platform-card" data-nav="${id}" style="--accent:${meta.accent}">
+          <div class="platform-card__top">
+            <div class="platform-card__icon" style="background:${meta.accent}22;color:${meta.accent}">${icon(meta.icon)}</div>
+            <span class="platform-card__name">${meta.label}</span>
+          </div>
+          <div class="conn-status ${connected ? 'conn-status--ok' : ''}">
+            <span class="conn-dot ${connected ? 'conn-dot--on' : 'conn-dot--off'}"></span>
+            ${connected ? 'Povezano' : 'Ni povezano'}
+          </div>
+          <div class="platform-card__stats">
+            <span>${conv.length} pogovorov</span>
+            <span class="${probs>0 ? '' : 'cell-muted'}" style="${probs>0 ? 'color:#FF5C6C' : ''}">${probs>0 ? probs+' problem'+(probs>1?'i':'') : 'brez problemov'}</span>
+          </div>
+        </button>`;
+      }).join('')}
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">${icon('message')} <span class="panel-title">Najnovejša aktivnost</span></div>
+      ${convTable(all.slice(0,8), true)}
+    </div>
+
+    ${problemPanel(problems, true)}
+  </div>`;
+}
+
+async function renderPlatform(id) {
+  const meta = PLATFORM_META[id];
+  const settings = await loadSettings(id);
+  const conv = state.conversations[id] || [];
+  const problems = conv.filter(c => c.status === "problem");
+  const connected = state.connections[id]?.connected;
+
+  return `
+  <div class="page">
+    <div class="platform-header">
+      <div class="platform-header__icon" style="background:${meta.accent}22;color:${meta.accent}">${icon(meta.icon)}</div>
+      <div>
+        <h1 class="page-title">${meta.label} klepetanje</h1>
+        <p class="page-subtitle">Samodejni AI odgovori, sprožilne besede in nadzor pogovorov</p>
+      </div>
+    </div>
+
+    <div class="grid-stats">
+      ${statCard('message', 'Pogovorov skupaj', conv.length, meta.accent)}
+      ${statCard('clock', 'Čaka na potrditev', conv.filter(c=>c.status==='warn').length, '#FFB84D')}
+      ${statCard('alert', 'Problemi', problems.length, '#FF5C6C')}
+      ${statCard('radio', 'Status', connected ? 'Povezano' : 'Ni povezano', connected ? '#3ED598' : '#565E6B')}
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">${icon('sparkles')} <span class="panel-title">Navodila za AI</span></div>
+      <textarea class="textarea" id="instructions-${id}" rows="5">${settings.instructions}</textarea>
+      <label class="form-label form-label--spaced">Sprožilne besede (trigger words)</label>
+      <p class="hint-text">Ko AI zazna eno od teh besed v sporočilu, ravna po navodilih zgoraj oz. sporočilo označi za pregled.</p>
+      <div class="chip-list" id="chips-${id}">
+        ${settings.trigger_words.map(w => `<span class="chip" style="border-color:${meta.accent}55;color:${meta.accent}">${w}<button class="chip-remove" data-remove-word="${id}|${w}">${icon('x')}</button></span>`).join('')}
+      </div>
+      <div class="chip-input-row">
+        <input class="input" id="wordinput-${id}" placeholder="Dodaj sprožilno besedo …" />
+        <button class="btn btn-ghost" data-add-word="${id}">${icon('plus')} Dodaj</button>
+      </div>
+      <div style="margin-top:14px">
+        <button class="btn btn-primary" style="background:${meta.accent}" data-save="${id}">Shrani navodila</button>
+        <span id="save-status-${id}" style="font-size:12px;color:var(--text-faint);margin-left:10px"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">${icon('message')} <span class="panel-title">Zadnji pogovori</span></div>
+      ${convTable(conv, false)}
+    </div>
+
+    ${problemPanel(problems, false)}
+  </div>`;
+}
+
+async function render() {
+  const app = document.getElementById('app');
+  const navItems = ["dashboard","instagram","fanvue","tiktok"];
+
+  if (state.loading) {
+    app.innerHTML = `<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;height:100vh;color:#8891a0;font-family:Inter,sans-serif">Nalagam podatke …</div>`;
+    return;
+  }
+
+  const pageHtml = state.tab === 'dashboard' ? renderDashboard() : await renderPlatform(state.tab);
+
+  app.innerHTML = `
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">${icon('zap')}</div>
+        <div><div class="brand-name">ODZIVNIK</div><div class="brand-sub">AI klepet · nadzor</div></div>
+      </div>
+      ${navItems.map(id => {
+        const meta = PLATFORM_META[id];
+        const conv = id === "dashboard" ? [...state.conversations.fanvue,...state.conversations.instagram,...state.conversations.tiktok] : (state.conversations[id]||[]);
+        const probCount = conv.filter(c => c.status === "problem").length;
+        return `<button class="nav-item ${state.tab===id?'active':''}" data-nav="${id}" style="border-left:2px solid ${state.tab===id ? meta.accent : 'transparent'}">
+          ${icon(meta.icon)} ${meta.label} ${probCount>0 ? '<span class="dot"></span>' : ''}
+        </button>`;
+      }).join('')}
+    </aside>
+    <div class="main">
+      <div class="topbar">
+        <span class="topbar-title">${state.tab==='dashboard' ? 'Pregled vseh kanalov' : `${PLATFORM_META[state.tab].label} · avtomatizacija klepeta`}</span>
+        <button class="btn btn-ghost" id="refresh-btn">${icon('radio')} Osveži</button>
+      </div>
+      ${pageHtml}
+    </div>
+  `;
+  bindEvents();
+}
+
+function bindEvents() {
+  document.querySelectorAll('[data-nav]').forEach(el => {
+    el.addEventListener('click', () => { state.tab = el.dataset.nav; render(); });
+  });
+  document.getElementById('refresh-btn')?.addEventListener('click', loadAll);
+
+  document.querySelectorAll('[data-save]').forEach(el => {
+    el.addEventListener('click', async () => {
+      const id = el.dataset.save;
+      const statusEl = document.getElementById(`save-status-${id}`);
+      const instructions = document.getElementById(`instructions-${id}`).value;
+      const trigger_words = state.settingsCache[id].trigger_words;
+      statusEl.textContent = 'Shranjujem …';
+      try {
+        const updated = await api(`/api/settings/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instructions, trigger_words }),
+        });
+        state.settingsCache[id] = updated;
+        statusEl.textContent = 'Shranjeno ✓';
+        setTimeout(() => { statusEl.textContent = ''; }, 2000);
+      } catch (e) {
+        statusEl.textContent = 'Napaka pri shranjevanju';
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-remove-word]').forEach(el => {
+    el.addEventListener('click', () => {
+      const [id, word] = el.dataset.removeWord.split('|');
+      state.settingsCache[id].trigger_words = state.settingsCache[id].trigger_words.filter(w => w !== word);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-add-word]').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.addWord;
+      const input = document.getElementById(`wordinput-${id}`);
+      const w = input.value.trim();
+      if (w && !state.settingsCache[id].trigger_words.includes(w)) state.settingsCache[id].trigger_words.push(w);
+      render();
+    });
+  });
+  document.querySelectorAll('[id^="wordinput-"]').forEach(el => {
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const id = el.id.replace('wordinput-', '');
+        document.querySelector(`[data-add-word="${id}"]`).click();
+      }
+    });
+  });
+}
+
+loadAll();
+</script>
+</body>
+</html>
