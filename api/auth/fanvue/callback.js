@@ -15,13 +15,20 @@ export default async function handler(req, res) {
   const codeVerifier = state.slice(state.indexOf(".") + 1);
 
   try {
+    // Fanvue pričakuje Client ID/Secret kot HTTP Basic Auth header
+    // (client_secret_basic), ne v telesu zahteve (client_secret_post).
+    const basicAuth = Buffer.from(
+      `${process.env.FANVUE_CLIENT_ID}:${process.env.FANVUE_CLIENT_SECRET}`
+    ).toString("base64");
+
     const tokenRes = await fetch(FANVUE_TOKEN_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${basicAuth}`,
+      },
       body: new URLSearchParams({
         grant_type: "authorization_code",
-        client_id: process.env.FANVUE_CLIENT_ID,
-        client_secret: process.env.FANVUE_CLIENT_SECRET,
         code,
         redirect_uri: process.env.FANVUE_REDIRECT_URI,
         code_verifier: codeVerifier,
