@@ -1,16 +1,85 @@
+import { waitUntil } from "@vercel/functions";
 import { verifyFanvueWebhookSignature } from "../../lib/fanvueAuth.js";
 import { getChatMessages, sendChatMessage } from "../../lib/fanvueApi.js";
 import { generateReply } from "../../lib/openaiService.js";
-import { getSettings, logConversation } from "../../lib/db.js";
+import { getSettings, logConversation, getMediaCatalog, wasEventAlreadyProcessed } from "../../lib/db.js";
 
-// Rabimo surovo (raw) telo zahteve za preverjanje podpisa, zato izklopimo
-// samodejno parsiranje JSON-a s strani Vercela.
 export const config = { api: { bodyParser: false } };
 
 async function readRawBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   return Buffer.concat(chunks).toString("utf8");
+}
+
+async function processMessage({ senderUuid, incomingMessage, fanName, eventId }) {
+  try {
+    console.log(`[${eventId}] berem nastavitve...`);
+    const settings = await getSettings("fanvue");
+
+    const rawHistory = await getChatMessages(senderUuid, 8).catch((e) => {
+      console.error(`[${eventId}] Napaka pri branju zgodovine:`, e.message);
+      return [];
+    });
+    const history = rawHistory.map((m) => ({
+      fromFan: m.senderUuid ? m.senderUuid === senderUuid : true,
+      content: m.content || m.text || "",
+    }));
+
+    const result = await generateReply({
+      platform: "fanvue",
+      instructions: settings.instructions,
+      triggerWords: settings.trigger_words,
+      history,
+      incomingMessage,
+    });
+    console.log(`[${eventId}] odgovor generiran, status: ${result.status}`);
+
+    if (result.status === "ok" && settings.auto_reply_enabled) {
+      const catalog = await getMediaCatalog("fanvue").catch(() => []);
+      const lowerMsg = incomingMessage.toLowerCase();
+      const matchedMedia = catalog.find(
+        (item) => item.active && (item.tags || []).some((tag) => lowerMsg.includes(String(tag).toLowerCase()))
+      );
+
+      await sendChatMessage(
+        senderUuid,
+        result.reply,
+        matchedMedia
+          ? { mediaUuids: [matchedMedia.media_uuid], price: matchedMedia.price_cents || undefined }
+          : undefined
+      );
+      console.log(`[${eventId}] odgovor poslan.`);
+    }
+
+    await logConversation({
+      platform: "fanvue",
+      external_chat_id: senderUuid,
+      fan_name: fanName,
+      incoming_message: incomingMessage,
+      ai_reply: result.reply,
+      status: result.status,
+      reason: result.reason,
+      event_id: eventId,
+    });
+    console.log(`[${eventId}] zaključeno.`);
+  } catch (err) {
+    console.error(`[${eventId}] Napaka pri obdelavi:`, err.message);
+    try {
+      await logConversation({
+        platform: "fanvue",
+        external_chat_id: senderUuid,
+        fan_name: fanName,
+        incoming_message: incomingMessage,
+        ai_reply: null,
+        status: "problem",
+        reason: `Tehnična napaka: ${err.message}`,
+        event_id: eventId,
+      });
+    } catch (dbErr) {
+      console.error(`[${eventId}] KRITIČNO: tudi zapis napake ni uspel:`, dbErr.message);
+    }
+  }
 }
 
 export default async function handler(req, res) {
@@ -29,122 +98,40 @@ export default async function handler(req, res) {
     return;
   }
 
-  console.log("Fanvue webhook raw payload:", rawBody.slice(0, 2000));
-
   let payload;
   try {
     payload = JSON.parse(rawBody);
   } catch {
-    console.error("Fanvue webhook: telo ni veljaven JSON");
-    res.status(200).json({ received: true, note: "invalid json, ignored" });
+    res.status(200).json({ received: true, note: "invalid json" });
     return;
   }
 
   const senderUuid =
-    payload?.sender?.uuid ||
-    payload?.senderUuid ||
-    payload?.data?.sender?.uuid ||
-    payload?.data?.senderUuid ||
-    payload?.userUuid;
-
+    payload?.sender?.uuid || payload?.senderUuid || payload?.data?.sender?.uuid || payload?.userUuid;
   const incomingMessage =
-    payload?.message?.text ||
-    payload?.message?.content ||
-    payload?.text ||
-    payload?.content ||
-    payload?.data?.message?.text ||
-    payload?.data?.content ||
-    "";
-
-  const fanName =
-    payload?.sender?.displayName ||
-    payload?.sender?.handle ||
-    payload?.data?.sender?.displayName ||
-    senderUuid ||
-    "neznan";
+    payload?.message?.text || payload?.message?.content || payload?.text || payload?.content || "";
+  const fanName = payload?.sender?.displayName || payload?.sender?.handle || senderUuid || "neznan";
+  const eventId = payload?.eventId || payload?.messageUuid || payload?.message?.uuid || null;
 
   if (!senderUuid) {
-    console.error("Fanvue webhook: ni bilo mogoče najti sender uuid v payloadu");
-    try {
-      await logConversation({
-        platform: "fanvue",
-        external_chat_id: "neznano",
-        fan_name: "neznano",
-        incoming_message: null,
-        ai_reply: null,
-        status: "problem",
-        reason: `Nisem prepoznal oblike sporočila. Surov payload (prvih 300 znakov): ${rawBody.slice(0, 300)}`,
-      });
-    } catch (e) {
-      console.error("Napaka pri zapisu problema v bazo:", e.message);
-    }
-    res.status(200).json({ received: true, note: "no sender uuid found" });
+    res.status(200).json({ received: true, note: "no sender uuid" });
     return;
   }
 
-  // POMEMBNO: vsa obdelava se zgodi TUKAJ, PREDEN pošljemo odgovor.
-  // Vercel lahko zamrzne izvajanje takoj po res.json(), zato ne smemo
-  // pustiti nobene await-ane kode za odgovorom.
-  try {
-    console.log("Fanvue webhook: berem nastavitve...");
-    const settings = await getSettings("fanvue");
-    console.log("Fanvue webhook: nastavitve prebrane, berem zgodovino sporočil...");
-
-    const rawHistory = await getChatMessages(senderUuid, 8).catch((e) => {
-      console.error("Napaka pri branju zgodovine sporočil:", e.message);
-      return [];
-    });
-    console.log("Fanvue webhook: zgodovina prebrana, generiram odgovor...");
-    const history = rawHistory.map((m) => ({
-      fromFan: m.senderUuid ? m.senderUuid === senderUuid : true,
-      content: m.content || m.text || "",
-    }));
-
-    const result = await generateReply({
-      platform: "fanvue",
-      instructions: settings.instructions,
-      triggerWords: settings.trigger_words,
-      history,
-      incomingMessage,
-    });
-    console.log("Fanvue webhook: odgovor generiran, status:", result.status);
-
-    if (result.status === "ok" && settings.auto_reply_enabled) {
-      console.log("Fanvue webhook: pošiljam odgovor...");
-      await sendChatMessage(senderUuid, result.reply);
-      console.log("Fanvue webhook: odgovor poslan.");
+  // Zaščita pred podvojenimi dostavami (Fanvue lahko isti dogodek pošlje
+  // večkrat, če naš odgovor ni bil dovolj hiter). Preverimo TAKOJ, sinhrono,
+  // preden sploh pošljemo odgovor - da ne zaženemo drugega procesiranja.
+  if (eventId) {
+    const already = await wasEventAlreadyProcessed(eventId).catch(() => false);
+    if (already) {
+      console.log(`[${eventId}] Podvojena dostava - preskačem.`);
+      res.status(200).json({ received: true, note: "duplicate, skipped" });
+      return;
     }
-
-    console.log("Fanvue webhook: zapisujem v bazo...");
-    await logConversation({
-      platform: "fanvue",
-      external_chat_id: senderUuid,
-      fan_name: fanName,
-      incoming_message: incomingMessage,
-      ai_reply: result.reply,
-      status: result.status,
-      reason: result.reason,
-    });
-    console.log("Fanvue webhook: uspešno zaključeno.");
-
-    res.status(200).json({ received: true, status: result.status });
-  } catch (err) {
-    console.error("Napaka pri obdelavi Fanvue sporočila:", err.message, err.stack);
-    try {
-      await logConversation({
-        platform: "fanvue",
-        external_chat_id: senderUuid,
-        fan_name: fanName,
-        incoming_message: incomingMessage,
-        ai_reply: null,
-        status: "problem",
-        reason: `Tehnična napaka: ${err.message}`,
-      });
-    } catch (dbErr) {
-      console.error("KRITIČNO: tudi zapis napake v bazo ni uspel:", dbErr.message, dbErr.stack);
-    }
-    // Vseeno vrni 200, da Fanvue ne poskuša znova pošiljati istega
-    // dogodka v neskončnost — napako smo že zabeležili v bazo.
-    res.status(200).json({ received: true, status: "problem" });
   }
+
+  // Takoj vrni 200 (Fanvue ne bo poskušal znova), obdelava teče v ozadju
+  // prek waitUntil, ki zanesljivo dokonča izvajanje tudi po odgovoru.
+  res.status(200).json({ received: true });
+  waitUntil(processMessage({ senderUuid, incomingMessage, fanName, eventId }));
 }
