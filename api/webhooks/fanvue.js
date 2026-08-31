@@ -29,12 +29,6 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Vrni 2xx TAKOJ, kot zahteva Fanvue dokumentacija, šele nato obdelaj.
-  res.status(200).json({ received: true });
-
-  // Vedno izpiši surov payload v loge - dokler ne potrdimo točne oblike
-  // podatkov, ki jih Fanvue dejansko pošilja, je to edini način, da vidimo,
-  // zakaj ekstrakcija polj morda ne uspe.
   console.log("Fanvue webhook raw payload:", rawBody.slice(0, 2000));
 
   let payload;
@@ -42,11 +36,10 @@ export default async function handler(req, res) {
     payload = JSON.parse(rawBody);
   } catch {
     console.error("Fanvue webhook: telo ni veljaven JSON");
+    res.status(200).json({ received: true, note: "invalid json, ignored" });
     return;
   }
 
-  // Poskusi več možnih oblik polj, ker se lahko struktura razlikuje
-  // glede na to, ali gre za legacy 'Message Received' ali novejši dogodek.
   const senderUuid =
     payload?.sender?.uuid ||
     payload?.senderUuid ||
@@ -72,20 +65,26 @@ export default async function handler(req, res) {
 
   if (!senderUuid) {
     console.error("Fanvue webhook: ni bilo mogoče najti sender uuid v payloadu");
-    // Zapiši v bazo, da vsaj vidiš na dashboardu, da se je nekaj zgodilo,
-    // namesto tihega izginotja.
-    await logConversation({
-      platform: "fanvue",
-      external_chat_id: "neznano",
-      fan_name: "neznano",
-      incoming_message: null,
-      ai_reply: null,
-      status: "problem",
-      reason: `Nisem prepoznal oblike sporočila. Surov payload (prvih 300 znakov): ${rawBody.slice(0, 300)}`,
-    }).catch((e) => console.error("Napaka pri zapisu problema v bazo:", e));
+    try {
+      await logConversation({
+        platform: "fanvue",
+        external_chat_id: "neznano",
+        fan_name: "neznano",
+        incoming_message: null,
+        ai_reply: null,
+        status: "problem",
+        reason: `Nisem prepoznal oblike sporočila. Surov payload (prvih 300 znakov): ${rawBody.slice(0, 300)}`,
+      });
+    } catch (e) {
+      console.error("Napaka pri zapisu problema v bazo:", e.message);
+    }
+    res.status(200).json({ received: true, note: "no sender uuid found" });
     return;
   }
 
+  // POMEMBNO: vsa obdelava se zgodi TUKAJ, PREDEN pošljemo odgovor.
+  // Vercel lahko zamrzne izvajanje takoj po res.json(), zato ne smemo
+  // pustiti nobene await-ane kode za odgovorom.
   try {
     console.log("Fanvue webhook: berem nastavitve...");
     const settings = await getSettings("fanvue");
@@ -127,6 +126,8 @@ export default async function handler(req, res) {
       reason: result.reason,
     });
     console.log("Fanvue webhook: uspešno zaključeno.");
+
+    res.status(200).json({ received: true, status: result.status });
   } catch (err) {
     console.error("Napaka pri obdelavi Fanvue sporočila:", err.message, err.stack);
     try {
@@ -142,5 +143,8 @@ export default async function handler(req, res) {
     } catch (dbErr) {
       console.error("KRITIČNO: tudi zapis napake v bazo ni uspel:", dbErr.message, dbErr.stack);
     }
+    // Vseeno vrni 200, da Fanvue ne poskuša znova pošiljati istega
+    // dogodka v neskončnost — napako smo že zabeležili v bazo.
+    res.status(200).json({ received: true, status: "problem" });
   }
 }
