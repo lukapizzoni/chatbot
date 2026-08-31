@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
+    "@vercel/functions": "^1.6.0",
     "openai": "^4.60.0"
   }
 }
