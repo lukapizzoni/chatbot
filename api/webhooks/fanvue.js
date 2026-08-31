@@ -87,9 +87,15 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log("Fanvue webhook: berem nastavitve...");
     const settings = await getSettings("fanvue");
+    console.log("Fanvue webhook: nastavitve prebrane, berem zgodovino sporočil...");
 
-    const rawHistory = await getChatMessages(senderUuid, 8).catch(() => []);
+    const rawHistory = await getChatMessages(senderUuid, 8).catch((e) => {
+      console.error("Napaka pri branju zgodovine sporočil:", e.message);
+      return [];
+    });
+    console.log("Fanvue webhook: zgodovina prebrana, generiram odgovor...");
     const history = rawHistory.map((m) => ({
       fromFan: m.senderUuid ? m.senderUuid === senderUuid : true,
       content: m.content || m.text || "",
@@ -102,11 +108,15 @@ export default async function handler(req, res) {
       history,
       incomingMessage,
     });
+    console.log("Fanvue webhook: odgovor generiran, status:", result.status);
 
     if (result.status === "ok" && settings.auto_reply_enabled) {
+      console.log("Fanvue webhook: pošiljam odgovor...");
       await sendChatMessage(senderUuid, result.reply);
+      console.log("Fanvue webhook: odgovor poslan.");
     }
 
+    console.log("Fanvue webhook: zapisujem v bazo...");
     await logConversation({
       platform: "fanvue",
       external_chat_id: senderUuid,
@@ -116,16 +126,21 @@ export default async function handler(req, res) {
       status: result.status,
       reason: result.reason,
     });
+    console.log("Fanvue webhook: uspešno zaključeno.");
   } catch (err) {
-    console.error("Napaka pri obdelavi Fanvue sporočila:", err);
-    await logConversation({
-      platform: "fanvue",
-      external_chat_id: senderUuid,
-      fan_name: fanName,
-      incoming_message: incomingMessage,
-      ai_reply: null,
-      status: "problem",
-      reason: `Tehnična napaka: ${err.message}`,
-    }).catch(() => {});
+    console.error("Napaka pri obdelavi Fanvue sporočila:", err.message, err.stack);
+    try {
+      await logConversation({
+        platform: "fanvue",
+        external_chat_id: senderUuid,
+        fan_name: fanName,
+        incoming_message: incomingMessage,
+        ai_reply: null,
+        status: "problem",
+        reason: `Tehnična napaka: ${err.message}`,
+      });
+    } catch (dbErr) {
+      console.error("KRITIČNO: tudi zapis napake v bazo ni uspel:", dbErr.message, dbErr.stack);
+    }
   }
 }
